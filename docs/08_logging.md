@@ -1,231 +1,220 @@
-# 📘 ログ設計テンプレート
+# 📘 ログ設計（部内OAuth基盤 / OIDC Provider版）
 
----
+------------------------------------------------------------------------
 
 # 0️⃣ 設計前提
 
-| 項目     | 内容                       |
-| ------ | ------------------------ |
-| 対象システム | Web / API / Batch / Edge |
-| ログ方式   | 構造化ログ（JSON）必須            |
-| 集約方式   | Centralized Logging      |
-| 保持期間   | 30日 / 90日 / 1年           |
-| 個人情報   | マスキング必須                  |
+  項目           内容
+  -------------- ----------------------------------
+  対象システム   Auth API（OIDC Provider）
+  ログ方式       構造化ログ（JSON必須）
+  集約方式       Centralized Logging
+  保持期間       Audit 1年以上 / その他90日
+  個人情報       トークン・秘密情報は絶対出力禁止
 
----
+------------------------------------------------------------------------
 
 # 1️⃣ ログ分類
 
-| 種別                 | 目的        | 出力対象   |
-| ------------------ | --------- | ------ |
-| Application Log    | 動作確認・デバッグ | 開発・運用  |
-| Access Log         | リクエスト追跡   | 運用     |
-| Audit Log          | セキュリティ監査  | セキュリティ |
-| Security Log       | 異常検知      | SOC    |
-| Business Log       | KPI分析     | BI     |
-| Infrastructure Log | リソース監視    | SRE    |
+  種別              目的                 出力対象
+  ----------------- -------------------- --------------
+  Application Log   バグ解析             開発・運用
+  Access Log        API追跡              運用
+  Audit Log         権限・設定変更追跡   セキュリティ
+  Security Log      不正検知             SOC
+  Auth Event Log    認証イベント記録     セキュリティ
 
----
+------------------------------------------------------------------------
 
-# 2️⃣ ログレベル定義
+# 2️⃣ ログレベル
 
-| レベル   | 用途          |
-| ----- | ----------- |
-| DEBUG | 詳細情報（本番無効可） |
-| INFO  | 正常動作        |
-| WARN  | 想定内の異常      |
-| ERROR | 処理失敗        |
-| FATAL | サービス停止級     |
+  レベル   用途
+  -------- ----------------------
+  DEBUG    詳細（本番無効推奨）
+  INFO     正常動作
+  WARN     想定内異常
+  ERROR    処理失敗
+  FATAL    起動不能
 
----
+------------------------------------------------------------------------
 
-# 3️⃣ 構造化ログフォーマット（JSON標準）
+# 3️⃣ 共通JSONフォーマット
 
-```json
+``` json
 {
-  "timestamp": "2025-01-01T10:00:00Z",
+  "timestamp": "2026-01-01T00:00:00Z",
   "level": "INFO",
-  "service": "api-service",
+  "service": "auth-api",
   "environment": "prod",
   "trace_id": "uuid",
-  "user_id": "uuid",
-  "tenant_id": "uuid",
-  "action": "entity.update",
-  "resource_type": "entity",
+  "user_uuid": "uuid",
+  "client_id": "uuid",
+  "action": "oauth.token.issue",
+  "resource_type": "user",
   "resource_id": "uuid",
-  "message": "Entity updated successfully",
+  "result": "success",
+  "ip": "x.x.x.x",
+  "user_agent": "...",
   "metadata": {}
 }
 ```
 
----
+------------------------------------------------------------------------
 
 # 4️⃣ 必須フィールド
 
-| フィールド     | 理由         |
-| --------- | ---------- |
-| timestamp | 時系列追跡      |
-| level     | 重要度        |
-| service   | マイクロサービス識別 |
-| trace_id  | 分散トレーシング   |
-| user_id   | 監査         |
-| tenant_id | マルチテナント    |
-| action    | 操作識別       |
+  フィールド   理由
+  ------------ ------------------
+  timestamp    時系列解析
+  level        重要度
+  service      サービス識別
+  trace_id     分散トレーシング
+  user_uuid    監査
+  action       操作識別
+  result       allow/deny
 
----
+------------------------------------------------------------------------
 
-# 5️⃣ Application Log設計
+# 5️⃣ OAuth特有ログ
 
-### 目的
+## 5-1. 認可コード発行
 
-* デバッグ
-* 障害解析
-
-### 出力例
-
-```json
+``` json
 {
-  "level": "ERROR",
-  "service": "api",
-  "trace_id": "abc-123",
-  "message": "Database connection failed",
-  "error_code": "DB_CONN_TIMEOUT"
+  "action": "oauth.authorize",
+  "client_id": "uuid",
+  "user_uuid": "uuid",
+  "scope": "openid profile",
+  "result": "allow"
 }
 ```
 
----
+## 5-2. トークン発行
 
-# 6️⃣ Access Log設計
-
-```json
+``` json
 {
-  "timestamp": "...",
-  "method": "POST",
-  "path": "/api/entities",
-  "status": 200,
-  "latency_ms": 120,
-  "ip": "xxx.xxx.xxx.xxx",
-  "user_agent": "...",
-  "trace_id": "..."
+  "action": "oauth.token.issue",
+  "client_id": "uuid",
+  "user_uuid": "uuid",
+  "grant_type": "authorization_code",
+  "result": "success"
 }
 ```
 
----
+## 5-3. Refreshローテーション
 
-# 7️⃣ Audit Log設計（重要）
-
-### 対象操作
-
-* ロール変更
-* データ削除
-* 設定変更
-* 認証失敗
-
-```json
+``` json
 {
-  "timestamp": "...",
-  "user_id": "uuid",
+  "action": "oauth.refresh.rotate",
+  "user_uuid": "uuid",
+  "client_id": "uuid",
+  "result": "success"
+}
+```
+
+------------------------------------------------------------------------
+
+# 6️⃣ Audit Log（重要）
+
+対象：
+
+-   user_status変更
+-   role付与/剥奪
+-   client_secret再発行
+-   redirect_uri変更
+
+``` json
+{
   "action": "role.grant",
   "resource_type": "user",
   "resource_id": "uuid",
   "before": {"role": "member"},
   "after": {"role": "admin"},
-  "result": "allow",
-  "ip": "..."
+  "actor_user_uuid": "uuid",
+  "result": "allow"
 }
 ```
 
----
+------------------------------------------------------------------------
 
-# 8️⃣ セキュリティログ
+# 7️⃣ Security Log
 
-| イベント      | 記録 |
-| --------- | -- |
-| ログイン失敗    | 必須 |
-| 異常アクセス    | 必須 |
-| レート制限発動   | 推奨 |
-| ABAC deny | 推奨 |
+  イベント            記録
+  ------------------- ------
+  ログイン失敗        必須
+  PKCE不一致          必須
+  不正client_id       必須
+  expired token使用   必須
+  rate limit発動      推奨
 
----
+------------------------------------------------------------------------
 
-# 9️⃣ 分散トレーシング設計
+# 8️⃣ 分散トレーシング
 
-```mermaid
+-   trace_id必須
+-   HTTP Header伝播
+-   OpenTelemetry推奨
+
+``` mermaid
 flowchart LR
-    Client --> Edge
-    Edge --> API
-    API --> DB
-    API --> Vector
+    Client --> CDN
+    CDN --> AuthAPI
+    AuthAPI --> Postgres
+    AuthAPI --> Redis
 ```
 
-### trace_id必須
+------------------------------------------------------------------------
 
-* 全サービスで引き継ぐ
-* HTTP Headerで伝播
+# 9️⃣ 保存構成
 
----
-
-# 🔟 ログ保存構成
-
-```mermaid
+``` mermaid
 flowchart LR
-    App --> LogAgent
+    AuthAPI --> LogAgent
     LogAgent --> LogCollector
     LogCollector --> LogStorage
     LogStorage --> Monitoring
 ```
 
----
+------------------------------------------------------------------------
 
-# 11️⃣ 保持ポリシー
+# 🔟 保持ポリシー
 
-| 種類          | 保持期間 |
-| ----------- | ---- |
-| Application | 30日  |
-| Access      | 90日  |
-| Audit       | 1年以上 |
-| Security    | 1年以上 |
+  種類          保持期間
+  ------------- ----------
+  Application   30日
+  Access        90日
+  Audit         1年以上
+  Security      1年以上
 
----
+------------------------------------------------------------------------
 
-# 12️⃣ マスキングポリシー
+# 11️⃣ マスキングポリシー
 
-| 対象    | 方針       |
-| ----- | -------- |
-| パスワード | 絶対出力禁止   |
-| トークン  | マスク      |
-| メール   | ハッシュ化    |
-| IP    | 必要に応じ匿名化 |
+  対象            方針
+  --------------- ------------------
+  client_secret   出力禁止
+  access_token    出力禁止
+  refresh_token   出力禁止
+  email           ハッシュ化
+  IP              必要に応じ匿名化
 
----
+------------------------------------------------------------------------
 
-# 13️⃣ フェーズ導入
+# 12️⃣ フェーズ導入
 
-```text
-Phase0:
-- Application Log
-- Access Log
-- 最低限のAudit Log
+Phase0: - Application Log - Access Log - OAuth主要イベントログ
 
-Phase1:
-- 構造化ログ統一
-- Centralized Logging
+Phase1: - Audit Log完全対応 - Centralized Logging
 
-Phase2:
-- 分散トレーシング
-- セキュリティイベント自動検知
+Phase2: - 分散トレーシング - セキュリティアラート自動化
 
-Phase3:
-- SIEM連携
-- 異常検知AI
-```
+Phase3: - SIEM連携 - 異常検知
 
----
+------------------------------------------------------------------------
 
-# 14️⃣ コスト最適化
+# 設計原則
 
-| 方法      | 説明        |
-| ------- | --------- |
-| DEBUG無効 | 本番削減      |
-| サンプリング  | 高トラフィック対策 |
-| ローテーション | 古いログ圧縮    |
+-   OAuth基盤ではAudit Logが最重要
+-   トークンは絶対にログ出力しない
+-   user_status変更は必ず監査ログ
+-   全APIでtrace_id必須

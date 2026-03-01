@@ -4,29 +4,29 @@
 
 # 0️⃣ 設計前提
 
-| 項目     | 内容                            |
-| ------ | ----------------------------- |
-| 対象ユーザー | 一般ユーザー / 管理者 / 未ログイン          |
-| デバイス   | Desktop / Mobile / Responsive |
-| 認証要否   | 公開ページあり / 全面認証制               |
-| 権限制御   | RBAC / ABAC / なし              |
-| MVP範囲  | P0画面のみ                        |
+| 項目     | 内容                             |
+| ------ | ------------------------------ |
+| 対象ユーザー | 未ログイン / 部員（member）/ 管理者（admin） |
+| デバイス   | Desktop中心（管理UI前提）/ Responsive  |
+| 認証要否   | 基本全面認証制（/loginのみ公開）            |
+| 権限制御   | RBAC（admin / member）           |
+| MVP範囲  | P0画面のみ（OIDC成立に必要なUI）           |
 
 ---
 
 # 1️⃣ 画面一覧（Screen Inventory）
 
-| ID   | 画面名     | 役割     | 認証  | 優先度 |
-| ---- | ------- | ------ | --- | --- |
-| S-01 | ランディング  | 入口     | 不要  | P0  |
-| S-02 | ログイン    | 認証     | 不要  | P0  |
-| S-03 | ダッシュボード | 中核画面   | 必須  | P0  |
-| S-04 | 一覧画面    | リソース一覧 | 必須  | P0  |
-| S-05 | 詳細画面    | 個別閲覧   | 必須  | P0  |
-| S-06 | 作成/編集画面 | データ変更  | 必須  | P0  |
-| S-07 | 設定画面    | ユーザー設定 | 必須  | P1  |
-| S-08 | 通知一覧    | 通知確認   | 必須  | P1  |
-| S-09 | 管理画面    | 管理者専用  | 管理者 | P2  |
+| ID   | 画面名        | 役割             | 認証  | 優先度 |
+| ---- | ---------- | -------------- | --- | --- |
+| S-01 | ログイン選択     | Discordログイン入口  | 不要  | P0  |
+| S-02 | 認可確認画面     | OAuthスコープ同意    | 必須  | P0  |
+| S-03 | ダッシュボード    | ユーザー中心画面       | 必須  | P0  |
+| S-04 | プロフィール     | 自分の情報確認        | 必須  | P0  |
+| S-05 | Identity管理 | 外部連携確認         | 必須  | P1  |
+| S-06 | クライアント管理   | OAuthアプリ登録     | 管理者 | P0  |
+| S-07 | ユーザー管理     | 部員管理           | 管理者 | P1  |
+| S-08 | ロール管理      | admin/member制御 | 管理者 | P1  |
+| S-09 | 監査ログ       | ログイン履歴確認       | 管理者 | P2  |
 
 ---
 
@@ -34,22 +34,20 @@
 
 ```mermaid
 flowchart TD
-    LP[Landing]
     LOGIN[Login]
+    CONSENT[Consent]
     DASH[Dashboard]
-    LIST[List]
-    DETAIL[Detail]
-    EDIT[Create / Edit]
-    SETTINGS[Settings]
-    ADMIN[Admin]
+    PROFILE[Profile]
+    IDENT[Identity]
+    CLIENT[OAuth Clients]
+    USERADMIN[User Admin]
 
-    LP --> LOGIN
     LOGIN --> DASH
-    DASH --> LIST
-    LIST --> DETAIL
-    DETAIL --> EDIT
-    DASH --> SETTINGS
-    DASH --> ADMIN
+    DASH --> PROFILE
+    DASH --> IDENT
+    DASH --> CLIENT
+    DASH --> USERADMIN
+    CLIENT --> CONSENT
 ```
 
 ---
@@ -58,15 +56,18 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    Public[Public Page]
-    AuthCheck{Authenticated?}
+    App[部内アプリ]
+    Authorize[/authorize]
     Login[Login]
-    App[App Home]
+    Consent[Consent]
+    Token[/token]
+    AppHome[アプリ画面]
 
-    Public --> AuthCheck
-    AuthCheck -- No --> Login
-    AuthCheck -- Yes --> App
-    Login --> App
+    App --> Authorize
+    Authorize --> Login
+    Login --> Consent
+    Consent --> Token
+    Token --> AppHome
 ```
 
 ---
@@ -75,11 +76,10 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    List --> Detail
-    Detail --> Edit
-    List --> Create
-    Edit --> Detail
-    Create --> Detail
+    UserList --> UserDetail
+    UserDetail --> EditUser
+    ClientList --> CreateClient
+    CreateClient --> ClientDetail
 ```
 
 ---
@@ -88,10 +88,11 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    Detail --> StatusCheck{Status?}
-    StatusCheck -->|Draft| Edit
-    StatusCheck -->|Active| ViewOnly
-    StatusCheck -->|Archived| ReadOnly
+    Login --> StatusCheck{user_status}
+    StatusCheck -->|pending| PendingScreen
+    StatusCheck -->|active| Dashboard
+    StatusCheck -->|suspended| SuspendedNotice
+    StatusCheck -->|banned| AccessDenied
 ```
 
 ---
@@ -100,10 +101,9 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    Detail --> RoleCheck{User Role}
-    RoleCheck -->|Viewer| ReadOnly
-    RoleCheck -->|Editor| Edit
-    RoleCheck -->|Admin| AdminPanel
+    Dashboard --> RoleCheck{Role}
+    RoleCheck -->|member| Profile
+    RoleCheck -->|admin| AdminPanel
 ```
 
 ---
@@ -112,10 +112,9 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    Detail --> ConfirmModal
-    ConfirmModal -->|Cancel| Detail
-    ConfirmModal -->|Confirm| Action
-    Action --> ResultToast
+    ClientDetail --> RotateSecretModal
+    RotateSecretModal --> Confirm
+    Confirm --> SecretUpdatedToast
 ```
 
 ---
@@ -124,11 +123,12 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    Submit --> API
-    API -->|Success| SuccessState
-    API -->|ValidationError| ShowFormError
-    API -->|Unauthorized| RedirectLogin
-    API -->|ServerError| ErrorPage
+    Authorize --> ValidateClient
+    ValidateClient -->|Invalid| ErrorPage
+    ValidateClient -->|Valid| IssueCode
+    IssueCode --> Token
+    Token -->|InvalidCode| OAuthError
+    Token -->|Success| ReturnToApp
 ```
 
 ---
@@ -137,9 +137,9 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    Dashboard --> HasData{Data exists?}
-    HasData -->|No| Onboarding
-    HasData -->|Yes| NormalView
+    Dashboard --> HasIdentity{Discord連携済?}
+    HasIdentity -->|No| ConnectDiscord
+    HasIdentity -->|Yes| NormalView
 ```
 
 ---
@@ -148,20 +148,27 @@ flowchart TD
 
 | 項目      | Desktop | Mobile     |
 | ------- | ------- | ---------- |
-| ナビゲーション | Sidebar | Bottom Nav |
-| 詳細表示    | 2カラム    | 1カラム       |
-| 編集      | ページ遷移   | フルスクリーン    |
+| ナビゲーション  | Sidebar  | Drawer |
+| クライアント管理 | テーブル表示   | 縦カード   |
+| 認可画面     | 詳細スコープ表示 | 簡易表示   |
+
 
 ---
 
-# 12️⃣ URL設計テンプレ
+# 12️⃣ URL設計テンプレ（OAuth）
 
 ```
 /login
 /dashboard
-/entities
-/entities/:id
-/entities/:id/edit
-/settings
-/admin
+/profile
+/identities
+/admin/users
+/admin/clients
+/admin/roles
+
+/oauth/authorize
+/oauth/token
+/oauth/consent
+/.well-known/openid-configuration
+/.well-known/jwks.json
 ```

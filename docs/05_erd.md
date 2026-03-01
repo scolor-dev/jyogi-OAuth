@@ -4,12 +4,12 @@
 
 # 0️⃣ 設計観点
 
-| 項目      | 内容                                    |
-| ------- | ------------------------------------- |
-| 権限モデル   | RBAC / ABAC / Hybrid                  |
-| ID戦略    | UUID / ULID / Auto Increment          |
-| 論理削除    | 有 / 無                                 |
-| 監査ログ    | 必須 / 任意                               |
+| 項目    | 内容                                           |
+| ----- | -------------------------------------------- |
+| 権限モデル | RBAC（admin/member）+ OAuth Scope（API制御）       |
+| ID戦略  | 内部: BIGINT IDENTITY / 外部公開: UUID（users.uuid） |
+| 論理削除  | 有（deleted_at）                                |
+| 監査ログ  | 必須（監査 + 認可イベント）                              |
 
 ---
 
@@ -17,92 +17,139 @@
 
 | ドメイン  | テーブル名             | 役割     | Phase |
 | ----- | ----------------- | ------ | ----- |
-| アカウント | users             | ユーザー主体 | P0    |
-| 認可    | roles             | ロール定義  | P0    |
-| 認可    | user_roles        | ロール付与  | P0    |
-| 組織    | groups            | 組織/チーム | P0    |
-| 組織    | group_members     | 所属関係   | P0    |
-| コア機能  | entities          | 中核リソース | P0    |
-| コア機能  | entity_relations  | 関係テーブル | P1    |
-| 補助    | comments          | コメント   | P1    |
-| 補助    | logs              | 操作ログ   | P0    |
-| 通知    | notifications     | 通知管理   | P1    |
-| 拡張    | custom_attributes | 拡張属性   | P2    |
-| 監査    | audit_logs        | 監査ログ   | P0    |
+| アカウント  | users                      | 部内ユーザー主体              | P0    |
+| 外部ID   | identities                 | Discord/GitHub等の紐付け   | P0    |
+| 認可     | roles                      | ロール定義                 | P0    |
+| 認可     | user_roles                 | ロール付与                 | P0    |
+| OAuth  | oauth_clients              | 部内アプリ登録               | P0    |
+| OAuth  | oauth_client_redirect_uris | リダイレクトURI管理           | P0    |
+| OAuth  | oauth_authorization_codes  | 認可コード（PKCE）           | P0    |
+| OAuth  | oauth_refresh_tokens       | Refresh Token（ハッシュ保存） | P0    |
+| 公開鍵    | signing_keys               | JWKS用鍵管理（ローテ用）        | P1    |
+| 監査     | audit_logs                 | 監査ログ（管理操作/重要イベント）     | P0    |
+| セキュリティ | auth_events                | ログイン/トークン発行イベント       | P1    |
+| 拡張     | oauth_scopes               | スコープ定義（任意）            | P1    |
+| 拡張     | oauth_client_scopes        | クライアント許可スコープ          | P1    |
+
 
 ---
 
-# 2️⃣ ERDテンプレート（抽象版）
+# 2️⃣ ERD（OIDC/OAuth）
 
 ```mermaid
 erDiagram
-
     users {
-        id PK
-        email UNIQUE
-        name
-        status
-        created_at
-        updated_at
+        bigint id PK
+        uuid uuid UNIQUE
+        user_status status
+        timestamptz created_at
+        timestamptz updated_at
+        timestamptz deleted_at
+    }
+
+    identities {
+        bigint id PK
+        bigint user_id FK
+        varchar provider
+        varchar provider_user_id
+        jsonb profile
+        timestamptz created_at
+        timestamptz updated_at
+        timestamptz deleted_at
     }
 
     roles {
-        id PK
-        name UNIQUE
-        level
+        smallint id PK
+        varchar name UNIQUE
+        smallint level
+        timestamptz created_at
     }
 
     user_roles {
-        user_id FK
-        role_id FK
-        granted_at
+        bigint user_id FK
+        smallint role_id FK
+        timestamptz granted_at
+        bigint granted_by FK
     }
 
-    groups {
-        id PK
-        name
-        status
-        created_by FK
-        created_at
+    oauth_clients {
+        bigint id PK
+        uuid client_id UNIQUE
+        varchar name
+        varchar client_type
+        varchar secret_hash
+        boolean is_confidential
+        timestamptz created_at
+        timestamptz updated_at
+        timestamptz deleted_at
+        bigint created_by FK
     }
 
-    group_members {
-        id PK
-        user_id FK
-        group_id FK
-        role
-        joined_at
+    oauth_client_redirect_uris {
+        bigint id PK
+        bigint client_pk FK
+        text redirect_uri
+        timestamptz created_at
     }
 
-    entities {
-        id PK
-        group_id FK
-        title
-        status
-        created_by FK
-        created_at
+    oauth_authorization_codes {
+        bigint id PK
+        uuid code_id UNIQUE
+        bigint client_pk FK
+        bigint user_id FK
+        text redirect_uri
+        text code_challenge
+        varchar code_challenge_method
+        text nonce
+        text scope
+        timestamptz expires_at
+        timestamptz consumed_at
+        timestamptz created_at
     }
 
-    entity_relations {
-        parent_id FK
-        child_id FK
+    oauth_refresh_tokens {
+        bigint id PK
+        bigint client_pk FK
+        bigint user_id FK
+        varchar token_hash UNIQUE
+        text scope
+        timestamptz expires_at
+        timestamptz revoked_at
+        timestamptz created_at
+        bigint parent_id FK
     }
 
-    comments {
-        id PK
-        entity_id FK
-        user_id FK
-        body
-        created_at
+    audit_logs {
+        bigint id PK
+        bigint actor_user_id FK
+        varchar action
+        varchar resource_type
+        varchar resource_id
+        jsonb meta
+        inet ip
+        text user_agent
+        timestamptz created_at
     }
 
-    users ||--o{ user_roles
-    roles ||--o{ user_roles
-    users ||--o{ group_members
-    groups ||--o{ group_members
-    groups ||--o{ entities
-    entities ||--o{ comments
-    entities ||--o{ entity_relations
+    signing_keys {
+        bigint id PK
+        varchar kid UNIQUE
+        text public_jwk
+        text private_key_ref
+        boolean is_active
+        timestamptz created_at
+        timestamptz rotated_at
+    }
+
+    users ||--o{ identities : has
+    users ||--o{ user_roles : has
+    roles ||--o{ user_roles : grants
+    users ||--o{ oauth_authorization_codes : issues
+    oauth_clients ||--o{ oauth_authorization_codes : requests
+    oauth_clients ||--o{ oauth_client_redirect_uris : allows
+    users ||--o{ oauth_refresh_tokens : has
+    oauth_clients ||--o{ oauth_refresh_tokens : has
+    users ||--o{ audit_logs : acts
 ```
 
 ---
@@ -111,67 +158,147 @@ erDiagram
 
 ## users
 
-| カラム        | 型         | 制約              | 説明              |
-| ---------- | --------- | --------------- | --------------- |
-| id         | UUID      | PK              |                 |
-| email      | VARCHAR   | UNIQUE NOT NULL |                 |
-| name       | VARCHAR   | NOT NULL        |                 |
-| status     | ENUM      | NOT NULL        | active/inactive |
-| created_at | TIMESTAMP | NOT NULL        |                 |
-| updated_at | TIMESTAMP | NOT NULL        |                 |
+| カラム        | 型           | 制約              | 説明                              |
+| ---------- | ----------- | --------------- | ------------------------------- |
+| id         | BIGINT      | PK              | 内部ID                            |
+| uuid       | UUID        | UNIQUE NOT NULL | 外部公開ID（OIDC sub）                |
+| status     | user_status | NOT NULL        | pending/active/suspended/banned |
+| created_at | TIMESTAMPTZ | NOT NULL        |                                 |
+| updated_at | TIMESTAMPTZ | NOT NULL        | trigger更新                       |
+| deleted_at | TIMESTAMPTZ | NULL            | 論理削除                            |
+
 
 ---
 
-## roles
+## identities（外部ID紐付け）
 
-| カラム   | 型        | 制約       | 説明        |
-| ----- | -------- | -------- | --------- |
-| id    | SMALLINT | PK       |           |
-| name  | VARCHAR  | UNIQUE   |           |
-| level | SMALLINT | NOT NULL | 数値が高いほど強い |
+| カラム              | 型           | 制約          | 説明                    |
+| ---------------- | ----------- | ----------- | --------------------- |
+| id               | BIGINT      | PK          |                       |
+| user_id          | BIGINT      | FK NOT NULL | users.id              |
+| provider         | VARCHAR     | NOT NULL    | discord/github/google |
+| provider_user_id | VARCHAR     | NOT NULL    | Discord user id等      |
+| profile          | JSONB       |             | 表示名/アイコン等キャッシュ        |
+| created_at       | TIMESTAMPTZ | NOT NULL    |                       |
+| updated_at       | TIMESTAMPTZ | NOT NULL    | trigger更新             |
+| deleted_at       | TIMESTAMPTZ | NULL        |                       |
 
----
-
-## entities（コアリソース）
-
-| カラム        | 型         | 制約       | 説明                    |
-| ---------- | --------- | -------- | --------------------- |
-| id         | UUID      | PK       |                       |
-| group_id   | UUID      | FK       | 所属単位                  |
-| title      | VARCHAR   | NOT NULL |                       |
-| status     | ENUM      | NOT NULL | draft/active/archived |
-| created_by | UUID      | FK       |                       |
-| created_at | TIMESTAMP | NOT NULL |                       |
-| updated_at | TIMESTAMP | NOT NULL |                       |
 
 ---
 
-# 4️⃣ 権限設計テンプレート
+## roles / user_roles（RBAC）
+
+### roles
+
+| カラム        | 型           | 制約              | 説明           |
+| ---------- | ----------- | --------------- | ------------ |
+| id         | SMALLINT    | PK              |              |
+| name       | VARCHAR     | UNIQUE NOT NULL | ADMIN/MEMBER |
+| level      | SMALLINT    | NOT NULL        | 80/50など      |
+| created_at | TIMESTAMPTZ | NOT NULL        |              |
+
+### user_roles
+
+| カラム        | 型           | 制約          | 説明  |
+| ---------- | ----------- | ----------- | --- |
+| user_id    | BIGINT      | FK NOT NULL |     |
+| role_id    | SMALLINT    | FK NOT NULL |     |
+| granted_at | TIMESTAMPTZ | NOT NULL    |     |
+| granted_by | BIGINT      | FK          | 付与者 |
+
+- PRIMARY KEY(user_id, role_id)
+
+---
+
+## oauth_clients（部内アプリ登録）
+
+| カラム             | 型           | 制約              | 説明                  |
+| --------------- | ----------- | --------------- | ------------------- |
+| id              | BIGINT      | PK              |                     |
+| client_id       | UUID        | UNIQUE NOT NULL | 公開client_id         |
+| name            | VARCHAR     | NOT NULL        | 表示名                 |
+| client_type     | VARCHAR     | NOT NULL        | public/confidential |
+| secret_hash     | VARCHAR     |                 | confidentialのみ      |
+| is_confidential | BOOLEAN     | NOT NULL        |                     |
+| created_by      | BIGINT      | FK              |                     |
+| created_at      | TIMESTAMPTZ | NOT NULL        |                     |
+| updated_at      | TIMESTAMPTZ | NOT NULL        |                     |
+| deleted_at      | TIMESTAMPTZ | NULL            |                     |
+
+## oauth_client_redirect_uris
+
+| カラム          | 型           | 制約          | 説明               |
+| ------------ | ----------- | ----------- | ---------------- |
+| id           | BIGINT      | PK          |                  |
+| client_pk    | BIGINT      | FK NOT NULL | oauth_clients.id |
+| redirect_uri | TEXT        | NOT NULL    | 完全一致チェック用        |
+| created_at   | TIMESTAMPTZ | NOT NULL    |                  |
+
+- UNIQUE(client_pk, redirect_uri)
+
+## oauth_authorization_codes（PKCE + nonce）
+
+| カラム                   | 型           | 制約              | 説明            |
+| --------------------- | ----------- | --------------- | ------------- |
+| id                    | BIGINT      | PK              |               |
+| code_id               | UUID        | UNIQUE NOT NULL | 認可コード識別子（DB側） |
+| client_pk             | BIGINT      | FK NOT NULL     |               |
+| user_id               | BIGINT      | FK NOT NULL     |               |
+| redirect_uri          | TEXT        | NOT NULL        |               |
+| code_challenge        | TEXT        | NOT NULL        | PKCE          |
+| code_challenge_method | VARCHAR     | NOT NULL        | S256推奨        |
+| nonce                 | TEXT        |                 | ID Token用     |
+| scope                 | TEXT        | NOT NULL        | スペース区切り       |
+| expires_at            | TIMESTAMPTZ | NOT NULL        | 短命            |
+| consumed_at           | TIMESTAMPTZ |                 | 使い捨て          |
+| created_at            | TIMESTAMPTZ | NOT NULL        |               |
+
+## oauth_refresh_tokens（ハッシュ保存 + ローテ）
+
+| カラム        | 型           | 制約              | 説明          |
+| ---------- | ----------- | --------------- | ----------- |
+| id         | BIGINT      | PK              |             |
+| client_pk  | BIGINT      | FK NOT NULL     |             |
+| user_id    | BIGINT      | FK NOT NULL     |             |
+| token_hash | VARCHAR     | UNIQUE NOT NULL | 生トークンは保存しない |
+| scope      | TEXT        | NOT NULL        |             |
+| expires_at | TIMESTAMPTZ | NOT NULL        |             |
+| revoked_at | TIMESTAMPTZ |                 |             |
+| parent_id  | BIGINT      | FK              | ローテ元        |
+| created_at | TIMESTAMPTZ | NOT NULL        |             |
+
+## audit_logs（監査ログ）
+
+| カラム           | 型           | 制約       | 説明                   |
+| ------------- | ----------- | -------- | -------------------- |
+| id            | BIGINT      | PK       |                      |
+| actor_user_id | BIGINT      | FK       | 操作者                  |
+| action        | VARCHAR     | NOT NULL | user.status_change等  |
+| resource_type | VARCHAR     | NOT NULL | users/oauth_clients… |
+| resource_id   | VARCHAR     | NOT NULL | 文字列で統一（uuid等も入る）     |
+| meta          | JSONB       |          | 差分や理由                |
+| ip            | INET        |          |                      |
+| user_agent    | TEXT        |          |                      |
+| created_at    | TIMESTAMPTZ | NOT NULL |                      |
+
+# 4️⃣ 権限設計（DB連携）
 
 ## RBAC
 
-* role.level 比較で許可判定
+- roles.level or roles.name で判定
+- user_roles による付与
 
 ## ABAC（任意）
 
-```json
-{
-  "subject.role": "EDITOR",
-  "resource.status": "active",
-  "environment.time": "<= deadline"
-}
-```
+- まずは導入しない（複雑化するため）
+- 必要になったら policies / policy_logs を追加
 
-| テーブル        | 役割   |
-| ----------- | ---- |
-| policies    | 条件定義 |
-| policy_logs | 評価ログ |
+# 🧠 ベクトルDB設計テンプレート（統合拡張・任意）
 
+OAuth基盤自体には必須ではないが、以下用途がある場合に有効：
 
-以下に、**超汎用DB設計テンプレートへベクトルDB設計を統合した拡張版**を示します。
-特定用途（AI推薦・RAG・検索等）に依存しない抽象モデルです。
-
-# 🧠 ベクトルDB設計テンプレート
+- 監査ログ検索（自然言語で「怪しい操作」検索）
+- ドキュメント/RAG（部内規約・運用手順の検索）
 
 ## アーキテクチャ選択パターン
 
@@ -184,8 +311,8 @@ App
 
 **メリット**
 
-* トランザクション整合性
-* シンプル
+- 監査ログの検索/分類に向く
+- 運用が単純
 
 **デメリット**
 
@@ -203,8 +330,8 @@ App
 
 **メリット**
 
-* 高速検索・水平スケール
-* フィルタリング最適化
+- 大規模/高頻度検索向け
+- 整合性管理が必要
 
 **デメリット**
 
@@ -212,19 +339,81 @@ App
 
 ## ベクトル格納設計パターン
 
----
+```Mermaid
+erDiagram
+    audit_logs {
+        bigint id PK
+        jsonb meta
+        timestamptz created_at
+    }
 
-## 🔹 パターン1：既存テーブルに直接持つ（小規模向け）
+    embeddings {
+        bigint id PK
+        varchar resource_type
+        varchar resource_id
+        varchar content_type
+        vector embedding
+        jsonb metadata
+        varchar model_name
+        timestamptz created_at
+    }
 
-```sql
-ALTER TABLE entities
-ADD COLUMN embedding VECTOR(1536);
+    audit_logs ||--o{ embeddings : "indexed"
 ```
 
-**適用条件**
+---
 
-* 1エンティティ = 1ベクトル
-* 更新頻度低い
+## embeddings テーブル定義
+
+| カラム           | 型           | 説明                    |
+| ------------- | ----------- | --------------------- |
+| id            | BIGINT      | PK                    |
+| resource_type | VARCHAR     | audit_logs/users等     |
+| resource_id   | VARCHAR     | 対象ID                  |
+| content_type  | VARCHAR     | message/meta/summary等 |
+| embedding     | VECTOR(N)   | ベクトル                  |
+| metadata      | JSONB       | フィルタ用属性（role等）        |
+| model_name    | VARCHAR     | 使用モデル                 |
+| created_at    | TIMESTAMPTZ |                       |
+
+
+## メタデータ例（検索フィルタ）
+
+```json
+{
+  "actor_role": "ADMIN",
+  "action": "user.status_change",
+  "result": "allow",
+  "date": "2026-03-01"
+}
+```
+
+## インデックス設計（pgvector）
+```sql
+-- 例: cosine
+CREATE INDEX idx_embeddings_hnsw
+ON embeddings
+USING hnsw (embedding vector_cosine_ops);
+```
+
+## クエリテンプレ（TopK）
+
+```sql
+SELECT resource_type, resource_id, 1 - (embedding <=> :q) AS similarity
+FROM embeddings
+WHERE metadata->>'actor_role' = 'ADMIN'
+ORDER BY embedding <=> :q
+LIMIT 20;
+```
+
+## 更新戦略
+
+| 戦略     | 説明                          |
+| ------ | --------------------------- |
+| 同期更新   | 監査ログ挿入時に即embedding生成（小規模向け） |
+| 非同期キュー | insert→job→embedding（推奨）    |
+| 再生成バッチ | モデル更新時に全更新                  |
+
 
 ---
 
