@@ -6,11 +6,23 @@ mod domain;
 mod service;
 mod adapter;
 
+use crate::{
+    config::env,
+    state::AppState,
+};
+
 #[tokio::main]
 async fn main() {
+    let _ = dotenvy::dotenv();
+
+    let config = env::load();
+    let state = AppState::new(config.clone());
+
     let app = app::create_app();
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
+    let addr = format!("{}:{}", config.app_host, config.app_port);
+
+    let listener = tokio::net::TcpListener::bind(addr)
         .await
         .unwrap();
 

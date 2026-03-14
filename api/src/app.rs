@@ -1,6 +1,9 @@
 use axum::Router;
 
-use crate::adapter::http::routes::health;
+use crate::{
+    adapter::http::routes::health,
+    state::AppState,
+};
 
 pub fn create_app() -> Router {
     Router::new()
