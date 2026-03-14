@@ -5,7 +5,8 @@ use crate::{
     state::AppState,
 };
 
-pub fn create_app() -> Router {
-    Router::new()
+pub fn create_app(state: AppState) -> Router {
+    Router::<AppState>::new()
         .merge(health::routes())
+        .with_state(state)
 }

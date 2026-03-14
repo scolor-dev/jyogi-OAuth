@@ -23,7 +23,7 @@ async fn main() {
 
     let state = AppState::new(config.clone());
 
-    let app = app::create_app();
+    let app = app::create_app(state);
 
     let addr = format!("{}:{}", config.app_host, config.app_port);
 
