@@ -1,7 +1,8 @@
 use crate::config::Config;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct AppState {
+    #[allow(dead_code)]
     pub config: Config,
 }
 
