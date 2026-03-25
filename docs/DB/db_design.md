@@ -64,7 +64,6 @@ erDiagram
 
     refresh_tokens {
         bigserial id PK
-        bigint user_id FK
         bigint session_id FK
         text token_hash
         text scope

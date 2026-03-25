@@ -4,10 +4,6 @@
 CREATE TABLE IF NOT EXISTS refresh_tokens (
     id BIGSERIAL PRIMARY KEY,
 
-    user_id BIGINT NOT NULL
-        REFERENCES users(id)
-        ON DELETE CASCADE,
-
     session_id BIGINT
         REFERENCES sessions(id)
         ON DELETE SET NULL,
@@ -29,9 +25,6 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 CREATE UNIQUE INDEX IF NOT EXISTS ux_refresh_tokens_token_hash
 ON refresh_tokens(token_hash)
 WHERE revoked_at IS NULL;
-
-CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id
-ON refresh_tokens(user_id);
 
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_session_id
 ON refresh_tokens(session_id);
