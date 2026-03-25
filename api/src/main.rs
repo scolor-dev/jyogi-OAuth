@@ -21,6 +21,7 @@ async fn main() -> Result<(), api::error::AppError> {
         .connect(&config.database_url)
         .await?;
 
+    tracing::info!("connected to database");
     tracing::info!("starting server");
 
     let addr = config.listen_addr()?;
