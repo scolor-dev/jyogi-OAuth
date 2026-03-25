@@ -9,6 +9,7 @@ export default function Signup() {
       <div className="bg-white p-8 rounded-lg shadow w-full max-w-sm">
         <h1 className="text-2xl font-bold mb-6 text-center">新規登録</h1>
 
+        {/* TODO: 認証ロジック実装時に入力値をフォームに接続する */}
         <form onSubmit={(e) => { e.preventDefault(); navigate('/') }} className="flex flex-col gap-4">
           <FormField label="ユーザー名" htmlFor="username">
             <Input id="username" type="text" placeholder="username" />
