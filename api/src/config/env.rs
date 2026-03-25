@@ -6,7 +6,8 @@ use super::Config;
 ///
 /// # Errors
 ///
-/// `APP_PORT` が設定されていて、それを `u16` に変換できない場合にエラーを返します。
+/// - `APP_PORT` が設定されていて、それを `u16` に変換できない場合にエラーを返します。
+/// - `DATABASE_URL` が未設定の場合にエラーを返します。
 pub fn load() -> Result<Config, ConfigError> {
     let app_host = std::env::var("APP_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
 
@@ -22,10 +23,5 @@ pub fn load() -> Result<Config, ConfigError> {
     let database_url = std::env::var("DATABASE_URL")
         .map_err(|_| ConfigError::MissingEnvVar { name: "DATABASE_URL" })?;
 
-    Ok(Config {
-        app_host,
-        app_port,
-        rust_log,
-        database_url,
-    })
+    Ok(Config::new(app_host, app_port, rust_log, database_url))
 }

@@ -24,6 +24,11 @@ impl fmt::Debug for Config {
 }
 
 impl Config {
+    #[must_use]
+    pub fn new(app_host: String, app_port: u16, rust_log: String, database_url: String) -> Self {
+        Self { app_host, app_port, rust_log, database_url }
+    }
+
     /// プロセス環境変数からアプリケーション設定を読み込みます。
     ///
     /// # Errors
