@@ -30,6 +30,9 @@ pub enum ConfigError {
         port: u16,
         source: AddrParseError,
     },
+    MissingEnvVar {
+        name: &'static str,
+    },
 }
 
 impl fmt::Display for ConfigError {
@@ -41,6 +44,9 @@ impl fmt::Display for ConfigError {
             Self::InvalidListenAddress { host, port, .. } => {
                 write!(f, "invalid listen address `{host}:{port}`")
             }
+            Self::MissingEnvVar { name } => {
+                write!(f, "required environment variable `{name}` is not set")
+            }
         }
     }
 }
@@ -50,6 +56,7 @@ impl StdError for ConfigError {
         match self {
             Self::InvalidPort { source, .. } => Some(source),
             Self::InvalidListenAddress { source, .. } => Some(source),
+            Self::MissingEnvVar { .. } => None,
         }
     }
 }

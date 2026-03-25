@@ -9,6 +9,7 @@ pub struct Config {
     pub app_host: String,
     pub app_port: u16,
     pub rust_log: String,
+    pub database_url: String,
 }
 
 impl Config {

@@ -19,9 +19,13 @@ pub fn load() -> Result<Config, ConfigError> {
 
     let rust_log = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
 
+    let database_url = std::env::var("DATABASE_URL")
+        .map_err(|_| ConfigError::MissingEnvVar { name: "DATABASE_URL" })?;
+
     Ok(Config {
         app_host,
         app_port,
         rust_log,
+        database_url,
     })
 }
