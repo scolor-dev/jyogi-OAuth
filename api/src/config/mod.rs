@@ -2,7 +2,7 @@ pub mod env;
 
 use std::{fmt, net::SocketAddr};
 
-use crate::error::ConfigError;
+use crate::errors::config::ConfigError;
 
 #[derive(Clone)]
 pub struct Config {
@@ -11,6 +11,7 @@ pub struct Config {
     pub rust_log: String,
     pub database_url: String,
     pub db_max_connections: u32,
+    pub jwt_secret: String,
 }
 
 impl fmt::Debug for Config {
@@ -21,6 +22,7 @@ impl fmt::Debug for Config {
             .field("rust_log", &self.rust_log)
             .field("database_url", &"[redacted]")
             .field("db_max_connections", &self.db_max_connections)
+            .field("jwt_secret", &"[redacted]")
             .finish()
     }
 }
@@ -33,8 +35,9 @@ impl Config {
         rust_log: String,
         database_url: String,
         db_max_connections: u32,
+        jwt_secret: String,
     ) -> Self {
-        Self { app_host, app_port, rust_log, database_url, db_max_connections }
+        Self { app_host, app_port, rust_log, database_url, db_max_connections, jwt_secret }
     }
 
     /// プロセス環境変数からアプリケーション設定を読み込みます。

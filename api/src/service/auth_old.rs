@@ -9,6 +9,35 @@ use crate::{
     error::ApiError,
 };
 
+pub fn generate_access_token(
+    state: &AppState,
+    user_id: Uuid,
+) -> Result<String, ApiError> {
+    let now = OffsetDateTime::now_utc().unix_timestamp();
+    let exp = now + ACCESS_TOKEN_EXPIRE_MINUTES * 60;
+
+    let claims = Claims {
+        sub: user_id.to_string(),
+        iat: now as usize,
+        exp: exp as usize,
+    };
+
+    encode(
+        &Header::default(), // HS256
+        &claims,
+        &EncodingKey::from_secret(state.jwt_secret().as_bytes()),
+    )
+    .map_err(ApiError::from)
+}
+
+
+
+
+
+
+
+
+
 /// セッションクッキー名
 pub const SESSION_COOKIE_NAME: &str = "session_token";
 

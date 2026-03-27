@@ -7,7 +7,11 @@ use api::{
 use sqlx::postgres::PgPoolOptions;
 
 #[tokio::main]
-async fn main() -> Result<(), api::error::AppError> {
+async fn main() -> Result<(), api::errors::app::AppError> {
+    rustls::crypto::aws_lc_rs::default_provider()
+        .install_default()
+        .expect("Failed to install CryptoProvider");
+    
     dotenvy::dotenv().ok();
 
     let config = Config::from_env()?;
@@ -29,7 +33,7 @@ async fn main() -> Result<(), api::error::AppError> {
     tracing::info!("starting server");
 
     let addr = config.listen_addr()?;
-    let state = AppState::new(db);
+    let state = AppState::new(db, config.jwt_secret);
     let app = app::create_app(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;

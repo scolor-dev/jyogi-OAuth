@@ -1,12 +1,15 @@
-use axum::{Json, extract::State, http::StatusCode};
-use axum_extra::extract::CookieJar;
-use axum_extra::extract::cookie::{Cookie, SameSite};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    Json,
+};
+use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 
 use crate::{
-    domain::models::{LoginRequest, SignupRequest},
-    error::ApiError,
-    service::auth::{self, SESSION_COOKIE_NAME},
     state::AppState,
+    domain::models::auth::{LoginRequest, LoginResponse, SignupRequest, SignupResponse, MeResponse},
+    errors::api::ApiError,
+    service,
 };
 
 /// POST /auth/signup — ユーザー登録
@@ -18,12 +21,12 @@ use crate::{
 pub async fn signup(
     State(state): State<AppState>,
     Json(body): Json<SignupRequest>,
-) -> Result<(StatusCode, Json<crate::domain::models::SignupResponse>), ApiError> {
-    let response = auth::signup(state.db(), &body).await?;
+) -> Result<(StatusCode, Json<SignupResponse>), ApiError> {
+    let response = service::auth::signup(state.db(), &body).await?;
     Ok((StatusCode::CREATED, Json(response)))
 }
 
-/// POST /auth/login — ログイン
+/// POST /auth/login — パスワードログイン
 ///
 /// # Errors
 /// - 認証失敗: 401
@@ -32,61 +35,85 @@ pub async fn login(
     State(state): State<AppState>,
     jar: CookieJar,
     Json(body): Json<LoginRequest>,
-) -> Result<(CookieJar, StatusCode), ApiError> {
-    let raw_token = auth::login(state.db(), &body).await?;
+) -> Result<(StatusCode, CookieJar, Json<LoginResponse>), ApiError> {
+    let (access_token, refresh_token) = service::auth::login(state.db(), &state, &body).await?;
 
-    let cookie = Cookie::build((SESSION_COOKIE_NAME, raw_token))
+    let refresh_cookie = Cookie::build(("refresh_token", refresh_token))
         .http_only(true)
-        .secure(true)
-        .same_site(SameSite::Strict)
         .path("/")
-        .max_age(time::Duration::days(30))
         .build();
 
-    Ok((jar.add(cookie), StatusCode::OK))
+    Ok((
+        StatusCode::OK,
+        jar.add(refresh_cookie),
+        Json(LoginResponse { access_token }),
+    ))
+}
+
+/// POST /auth/refresh — アクセストークン更新
+///
+/// # Errors
+/// - トークン未送信・無効: 401
+/// - その他: 500
+pub async fn refresh(
+    State(state): State<AppState>,
+    jar: CookieJar,
+) -> Result<(StatusCode, CookieJar, Json<LoginResponse>), ApiError> {
+    let raw_token = jar
+        .get("refresh_token")
+        .map(|c| c.value().to_string())
+        .ok_or(ApiError::Unauthorized)?;
+
+    let (access_token, refresh_token) = service::auth::refresh(state.db(), &state, &raw_token).await?;
+
+    let refresh_cookie = Cookie::build(("refresh_token", refresh_token))
+        .http_only(true)
+        .path("/")
+        .build();
+
+    Ok((
+        StatusCode::OK,
+        jar.add(refresh_cookie),
+        Json(LoginResponse { access_token }),
+    ))
 }
 
 /// POST /auth/logout — ログアウト
 ///
 /// # Errors
-/// - セッション無効: 401
 /// - その他: 500
 pub async fn logout(
     State(state): State<AppState>,
     jar: CookieJar,
 ) -> Result<(CookieJar, StatusCode), ApiError> {
     let raw_token = jar
-        .get(SESSION_COOKIE_NAME)
-        .map(|c| c.value().to_owned())
+        .get("refresh_token")
+        .map(|c| c.value().to_string())
         .ok_or(ApiError::Unauthorized)?;
 
-    auth::logout(state.db(), &raw_token).await?;
+    service::auth::logout(state.db(), &raw_token).await?;
 
-    let removal = Cookie::build((SESSION_COOKIE_NAME, ""))
-        .http_only(true)
-        .secure(true)
-        .same_site(SameSite::Strict)
-        .path("/")
-        .max_age(time::Duration::ZERO)
-        .build();
+    let jar = jar.remove(Cookie::from("refresh_token"));
 
-    Ok((jar.remove(removal), StatusCode::NO_CONTENT))
+    Ok((jar, StatusCode::OK))
 }
 
-/// GET /auth/me — 現在のユーザー情報取得
+/// GET /auth/me — 認証済みユーザー情報取得
 ///
 /// # Errors
-/// - セッション無効: 401
+/// - 未認証: 401
 /// - その他: 500
 pub async fn me(
     State(state): State<AppState>,
-    jar: CookieJar,
-) -> Result<Json<crate::domain::models::MeResponse>, ApiError> {
-    let raw_token = jar
-        .get(SESSION_COOKIE_NAME)
-        .map(|c| c.value().to_owned())
+    headers: axum::http::HeaderMap,
+) -> Result<(StatusCode, Json<MeResponse>), ApiError> {
+    let raw_token = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
         .ok_or(ApiError::Unauthorized)?;
 
-    let response = auth::me(state.db(), &raw_token).await?;
-    Ok(Json(response))
+    let response = service::auth::me(state.db(), &state, raw_token).await?;
+    Ok((StatusCode::OK, Json(response)))
 }
+

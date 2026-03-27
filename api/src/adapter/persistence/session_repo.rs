@@ -1,62 +1,50 @@
 use sqlx::PgPool;
-
-use crate::domain::models::Session;
+use uuid::Uuid;
+use crate::domain::models::user::Session;
 
 /// セッションを作成する（login 用）
-///
-/// # Errors
-/// - DB エラー時に `sqlx::Error` を返す
 pub async fn create(
     pool: &PgPool,
-    user_id: i64,
-    token_hash: &str,
-) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "INSERT INTO sessions (user_id, token_hash, expires_at) \
-         VALUES ($1, $2, NOW() + INTERVAL '30 days')",
+    user_uuid: Uuid,
+) -> Result<i64, sqlx::Error> {
+    let session_id = sqlx::query_scalar(
+        "INSERT INTO sessions (user_uuid, expires_at) \
+         VALUES ($1, NOW() + INTERVAL '30 days') RETURNING id",
     )
-    .bind(user_id)
-    .bind(token_hash)
-    .execute(pool)
+    .bind(user_uuid)
+    .fetch_one(pool)
     .await?;
-
-    Ok(())
+    Ok(session_id)
 }
 
-/// 有効なセッションをトークンハッシュで検索する（logout / me 用）
-///
-/// # Errors
-/// - DB エラー時に `sqlx::Error` を返す
-pub async fn find_valid_by_hash(
+/// セッションをIDで取得
+pub async fn find_by_id(
     pool: &PgPool,
-    token_hash: &str,
+    session_id: i64,
 ) -> Result<Option<Session>, sqlx::Error> {
     sqlx::query_as::<_, Session>(
-        "SELECT id, user_id \
+        "SELECT id, user_uuid \
          FROM sessions \
-         WHERE token_hash = $1 \
+         WHERE id = $1 \
            AND revoked_at IS NULL \
            AND expires_at > NOW()",
     )
-    .bind(token_hash)
+    .bind(session_id)
     .fetch_optional(pool)
     .await
 }
 
 /// セッションを失効させる（logout 用）
-///
-/// # Errors
-/// - DB エラー時に `sqlx::Error` を返す
-pub async fn revoke_by_hash(
+pub async fn revoke_by_id(
     pool: &PgPool,
-    token_hash: &str,
+    session_id: i64,
 ) -> Result<(), sqlx::Error> {
     sqlx::query(
-        "UPDATE sessions SET revoked_at = NOW() WHERE token_hash = $1 AND revoked_at IS NULL",
+        "UPDATE sessions SET revoked_at = NOW() \
+         WHERE id = $1 AND revoked_at IS NULL",
     )
-    .bind(token_hash)
+    .bind(session_id)
     .execute(pool)
     .await?;
-
     Ok(())
 }

@@ -1,4 +1,4 @@
-use crate::error::ConfigError;
+use crate::errors::config::ConfigError;
 
 use super::Config;
 
@@ -32,6 +32,9 @@ pub fn load() -> Result<Config, ConfigError> {
             value: db_max_connections_str.clone(),
             source,
         })?;
+    
+    let jwt_secret = std::env::var("JWT_SECRET")
+        .map_err(|_| ConfigError::MissingEnvVar { name: "JWT_SECRET" })?;
 
-    Ok(Config::new(app_host, app_port, rust_log, database_url, db_max_connections))
+    Ok(Config::new(app_host, app_port, rust_log, database_url, db_max_connections, jwt_secret))
 }
