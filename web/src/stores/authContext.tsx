@@ -2,14 +2,10 @@ import { createContext, useState, useRef, useEffect, type ReactNode } from 'reac
 import { useNavigate } from 'react-router-dom'
 import { initApiClient } from '../api/client'
 import { getMeApi, logoutApi } from '../api/authApi'
+import type { User } from '../types/user'
 
-// ユーザープロフィールの型（AC-1）
-// バックエンドの MeResponse { user_uuid, display_name, identifier } に対応
-export type User = {
-  uuid: string
-  identifier: string  // メールアドレス等の識別子（バックエンドの identifier フィールド）
-  display_name: string
-}
+// User 型の再エクスポート（useAuth.ts 等の既存 import との後方互換性維持）
+export type { User } from '../types/user'
 
 type AuthContextType = {
   isLoggedIn: boolean
@@ -52,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // バックエンドは CookieJar から RT を取得するため AT ヘッダー不要
   const logout = async (): Promise<void> => {
     await logoutApi().catch(() => {
-      // サーバーエラーでもクライアント状態はクリアする
+      // RT は httpOnly Cookie のためフロントから直接削除不可。サーバーエラー時もクライアント状態をクリアする
     })
     accessTokenRef.current = null
     setUser(null)
@@ -70,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 初回マウント時は AT がメモリにないため、先に RT で AT を取得してから me を呼ぶ必要がある
     const restoreSession = async (): Promise<void> => {
       // まず RT を使って AT を取得する
+      // 初期化時のセッション復元（client.ts の apiFetch 経由の 401 インターセプトとは別経路）
       try {
         const refreshRes = await fetch('/api/v1/auth/refresh', {
           method: 'POST',
@@ -98,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     restoreSession()
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // navigate は react-router が安定参照を保証するため依存配列から除外
   }, [])
 
   return (

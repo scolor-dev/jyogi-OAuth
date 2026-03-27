@@ -1,4 +1,4 @@
-import type { User } from '../stores/authContext'
+import type { User } from '../types/user'
 
 export type LoginResponse = {
   user: User
@@ -60,7 +60,12 @@ export async function signupApi(
   }
 
   // サインアップ成功後にログインして AT とユーザー情報を取得する
-  return loginApi(email, password)
+  // login フェーズが失敗した場合は status=0 で throw する（signup 自体は成功済みのため）
+  try {
+    return await loginApi(email, password)
+  } catch {
+    throw new ApiError(0, '登録は完了しましたが自動ログインに失敗しました。ログイン画面からサインインしてください。')
+  }
 }
 
 // POST /api/v1/auth/logout

@@ -32,6 +32,9 @@ export default function Signup() {
           setError('このメールアドレスはすでに登録されています')
         } else if (err.status === 400) {
           setError(err.message)
+        } else if (err.status === 0) {
+          // signup 自体は成功したが自動ログインに失敗した場合
+          setError(err.message)
         } else {
           setError('新規登録に失敗しました。しばらく時間をおいて再度お試しください。')
         }
