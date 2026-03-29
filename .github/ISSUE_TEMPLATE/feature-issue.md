@@ -1,5 +1,5 @@
 ---
-name: "機能追加ISSUE"
+name: "Feature Issue"
 about: 機能追加用テンプレート
 title: "[Feature] "
 labels: [feature]
@@ -36,6 +36,17 @@ assignees: ""
 - [ ] Database
 - [ ] Infrastructure
 - [ ] CI / Build
+
+---
+
+## 備考
+<!-- 任意 -->
+
+---
+
+## ブランチ
+<!-- 使用するブランチ種別 -->
+- type: `feature`
 
 ---
 

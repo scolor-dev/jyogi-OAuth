@@ -1,5 +1,5 @@
 ---
-name: "リファクタISSUE"
+name: "Refactor Issue"
 about: リファクタ用テンプレート
 title: "[Refactor] "
 labels: [refactor]
@@ -27,6 +27,10 @@ assignees: ""
 
 ---
 
+## 完了条件
+
+---
+
 ## 影響範囲
 <!-- 影響範囲を選択してください -->
 - [ ] Frontend
@@ -34,6 +38,17 @@ assignees: ""
 - [ ] Database
 - [ ] Infrastructure
 - [ ] CI / Build
+
+---
+
+## 備考
+<!-- 任意 -->
+
+---
+
+## ブランチ
+<!-- 使用するブランチ種別 -->
+- type: `refactor`
 
 ---
 

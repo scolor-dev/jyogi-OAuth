@@ -1,5 +1,5 @@
 ---
-name: "ドキュメントISSUE"
+name: "Document Issue"
 about: ドキュメント用テンプレート
 title: "[Document] "
 labels: [documentation]
@@ -21,5 +21,22 @@ assignees: ""
 
 ---
 
+## 備考
+<!-- 任意 -->
+
+---
+
 ## 修正内容
 <!-- 修正内容を記載してください -->
+
+---
+
+## ブランチ
+<!-- 使用するブランチ種別 -->
+type: `document` / `refactor` / `chore`
+
+---
+
+## 確認事項
+<!-- 確認してください -->
+- [ ] 既存のIssueを確認しました。

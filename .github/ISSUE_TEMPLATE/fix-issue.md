@@ -1,8 +1,8 @@
 ---
-name: "バグISSUE"
-about: バグ用テンプレート
-title: "[Bug] "
-labels: [bug]
+name: "Fix Issue"
+about: バグ修正・不具合対応用テンプレート
+title: "[fix] "
+labels: [fix]
 assignees: ""
 ---
 
@@ -32,6 +32,17 @@ assignees: ""
 
 ## 原因の仮説
 <!-- 原因の仮説があれば記載してください -->
+
+---
+
+## 備考
+<!-- 任意 -->
+
+---
+
+## ブランチ
+<!-- 使用するブランチ種別 -->
+- type: `fix` / `hotfix`
 
 ---
 

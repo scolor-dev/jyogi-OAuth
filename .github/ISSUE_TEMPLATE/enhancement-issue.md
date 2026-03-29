@@ -1,5 +1,5 @@
 ---
-name: "機能改良・拡張ISSUE"
+name: "Enhancement Issue"
 about: 機能改良・拡張用テンプレート
 title: "[Enhancement] "
 labels: [enhancement]
@@ -36,6 +36,17 @@ assignees: ""
 - [ ] Database
 - [ ] Infrastructure
 - [ ] CI / Build
+
+---
+
+## 備考
+<!-- 任意 -->
+
+---
+
+## ブランチ
+<!-- 使用するブランチ種別 -->
+- type: `feature` / `refactor` / `performance`
 
 ---
 
