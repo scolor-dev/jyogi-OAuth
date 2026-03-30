@@ -7,12 +7,8 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'identity_type') THEN
         CREATE TYPE identity_type AS ENUM (
-            'username',
-            'email',
-            'oauth_google',
-            'oauth_discord',
-            'oauth_github',
-            'oauth_microsoft'
+            'username'
+            -- 'email', 'oauth_google', 'oauth_discord', 'oauth_github', 'oauth_microsoft'
         );
     END IF;
 END$$;
