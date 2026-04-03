@@ -1,8 +1,10 @@
 #[derive(Clone)]
-pub struct AppState {}
+pub struct AppState {
+    pub pool: PgPool,
+}
 
 impl AppState {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
     }
 }
