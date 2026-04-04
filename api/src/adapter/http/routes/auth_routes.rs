@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use axum::{routing::post, Router};
+use axum::{routing::{post, get}, Router};
 
 use crate::{
-    adapter::http::handlers::auth_handler::{login, logout, refresh, signup},
+    adapter::http::handlers::auth_handlers::{login, logout, refresh, signup},
     service::auth_service::AuthService,
 };
 
@@ -15,5 +15,6 @@ pub fn auth_routes(auth_svc: Arc<AuthService>) -> Router {
         .route("/login", post(login))
         .route("/refresh", post(refresh))
         .route("/logout", post(logout))
+        .route("/me", get(me))
         .with_state(auth_svc)
 }
