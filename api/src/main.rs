@@ -6,32 +6,18 @@ mod error;
 mod service;
 mod state;
 
-use config::Config;
-use state::AppState;
-
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    dotenvy::dotenv().ok();
-
-    let config = Config::from_env()?;
-
+async fn main() {
     tracing_subscriber::fmt()
-        .with_env_filter(&config.rust_log)
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    let pool = sqlx::postgres::PgPoolOptions::new()
-        .max_connections(config.db_max_connections)
-        .connect(&config.database_url)
-        .await?;
+    dotenvy::dotenv().ok();
 
-    let state = AppState::new(pool);
-    let app = app::create_app(state);
-    let addr = config.listen_addr()?;
-    let listener = tokio::net::TcpListener::bind(addr).await?;
+    let cfg = config::AppConfig::from_env();
+    let app = app::build_app(cfg).await;
 
-    tracing::info!("server listening on {}", addr);
-
-    axum::serve(listener, app).await?;
-
-    Ok(())
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
+    tracing::info!("listening on {}", listener.local_addr().unwrap());
+    axum::serve(listener, app).await.unwrap();
 }
