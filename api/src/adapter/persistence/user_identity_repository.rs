@@ -10,9 +10,9 @@ pub async fn find_by_identifier(
 ) -> Result<Option<UserIdentity>, AppError> {
     sqlx::query_as(
         r#"
-        SELECT id, user_id, "type" AS identity_type, identifier, is_primary, created_at, updated_at
+        SELECT id, user_id, "type"::text AS identity_type, identifier, is_primary, created_at, updated_at
         FROM user_identities
-        WHERE "type" = $1 AND identifier = $2
+        WHERE "type" = $1::identity_type AND identifier = $2
         "#,
     )
     .bind(identity_type)
@@ -32,8 +32,8 @@ pub async fn create(
     sqlx::query_as(
         r#"
         INSERT INTO user_identities (user_id, "type", identifier, is_primary)
-        VALUES ($1, $2, $3, $4)
-        RETURNING id, user_id, "type" AS identity_type, identifier, is_primary, created_at, updated_at
+        VALUES ($1, $2::identity_type, $3, $4)
+        RETURNING id, user_id, "type"::text AS identity_type, identifier, is_primary, created_at, updated_at
         "#,
     )
     .bind(user_id)

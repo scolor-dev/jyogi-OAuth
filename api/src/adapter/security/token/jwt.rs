@@ -3,50 +3,45 @@ use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation}
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{config::JwtConfig, error::AppError};
+use crate::error::AppError;
 
-// ── Claims ────────────────────────────────────────────────────────────────────
+#[derive(Debug, Clone)]
+pub struct JwtConfig {
+    pub secret: String,
+    pub expires_in_secs: i64,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    /// user.uuid（外部公開用）
-    pub sub: String,
-    /// session.uuid
-    pub sid: String,
+    pub sub: String,   // user_uuid
+    pub sid: String,   // session_uuid
     pub iat: i64,
     pub exp: i64,
 }
 
-// ── 生成 ──────────────────────────────────────────────────────────────────────
-
-pub fn generate(
-    user_uuid: Uuid,
-    session_uuid: Uuid,
-    config: &JwtConfig,
-) -> Result<String, AppError> {
+pub fn generate(cfg: &JwtConfig, user_uuid: Uuid, session_uuid: Uuid) -> Result<String, AppError> {
     let now = Utc::now().timestamp();
     let claims = Claims {
         sub: user_uuid.to_string(),
         sid: session_uuid.to_string(),
         iat: now,
-        exp: now + config.expires_in_secs,
+        exp: now + cfg.expires_in_secs,
     };
+
     encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(config.secret.as_bytes()),
+        &EncodingKey::from_secret(cfg.secret.as_bytes()),
     )
-    .map_err(|e| AppError::Internal(anyhow::anyhow!(e)))
+    .map_err(|e: jsonwebtoken::errors::Error| AppError::Internal(anyhow::anyhow!("jwt encode error: {}", e)))
 }
 
-// ── 検証 ──────────────────────────────────────────────────────────────────────
-
-pub fn verify(token: &str, config: &JwtConfig) -> Result<Claims, AppError> {
+pub fn verify(cfg: &JwtConfig, token: &str) -> Result<Claims, AppError> {
     decode::<Claims>(
         token,
-        &DecodingKey::from_secret(config.secret.as_bytes()),
+        &DecodingKey::from_secret(cfg.secret.as_bytes()),
         &Validation::default(),
     )
     .map(|data| data.claims)
-    .map_err(|e| AppError::Unauthorized(format!("Invalid token: {e}")))
+    .map_err(|e| AppError::Unauthorized(format!("invalid token: {}", e)))
 }

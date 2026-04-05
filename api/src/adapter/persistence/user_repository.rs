@@ -6,7 +6,7 @@ use crate::error::AppError;
 pub async fn find_by_id(pool: &PgPool, id: i64) -> Result<Option<User>, AppError> {
     sqlx::query_as(
         r#"
-        SELECT id, uuid, status, created_at, updated_at, deleted_at
+        SELECT id, uuid, status::text, created_at, updated_at, deleted_at
         FROM users
         WHERE id = $1
         "#,
@@ -20,7 +20,7 @@ pub async fn find_by_id(pool: &PgPool, id: i64) -> Result<Option<User>, AppError
 pub async fn find_by_uuid(pool: &PgPool, uuid: uuid::Uuid) -> Result<Option<User>, AppError> {
     sqlx::query_as(
         r#"
-        SELECT id, uuid, status, created_at, updated_at, deleted_at
+        SELECT id, uuid, status::text, created_at, updated_at, deleted_at
         FROM users
         WHERE uuid = $1
         "#,
@@ -35,7 +35,7 @@ pub async fn create(conn: &mut PgConnection) -> Result<User, AppError> {
     sqlx::query_as(
         r#"
         INSERT INTO users DEFAULT VALUES
-        RETURNING id, uuid, status, created_at, updated_at, deleted_at
+        RETURNING id, uuid, status::text, created_at, updated_at, deleted_at
         "#,
     )
     .fetch_one(conn)
@@ -47,9 +47,9 @@ pub async fn activate(conn: &mut PgConnection, id: i64) -> Result<User, AppError
     sqlx::query_as(
         r#"
         UPDATE users
-        SET status = 'active'
+        SET status = 'active'::user_status
         WHERE id = $1
-        RETURNING id, uuid, status, created_at, updated_at, deleted_at
+        RETURNING id, uuid, status::text, created_at, updated_at, deleted_at
         "#,
     )
     .bind(id)
@@ -62,9 +62,9 @@ pub async fn inactivate(pool: &PgPool, id: i64) -> Result<User, AppError> {
     sqlx::query_as(
         r#"
         UPDATE users
-        SET status = 'inactive'
+        SET status = 'inactive'::user_status
         WHERE id = $1
-        RETURNING id, uuid, status, created_at, updated_at, deleted_at
+        RETURNING id, uuid, status::text, created_at, updated_at, deleted_at
         "#,
     )
     .bind(id)
@@ -77,9 +77,9 @@ pub async fn suspend(pool: &PgPool, id: i64) -> Result<User, AppError> {
     sqlx::query_as(
         r#"
         UPDATE users
-        SET status = 'suspended'
+        SET status = 'suspended'::user_status
         WHERE id = $1
-        RETURNING id, uuid, status, created_at, updated_at, deleted_at
+        RETURNING id, uuid, status::text, created_at, updated_at, deleted_at
         "#,
     )
     .bind(id)
@@ -94,7 +94,7 @@ pub async fn delete(pool: &PgPool, id: i64) -> Result<User, AppError> {
         UPDATE users
         SET deleted_at = NOW()
         WHERE id = $1
-        RETURNING id, uuid, status, created_at, updated_at, deleted_at
+        RETURNING id, uuid, status::text, created_at, updated_at, deleted_at
         "#,
     )
     .bind(id)

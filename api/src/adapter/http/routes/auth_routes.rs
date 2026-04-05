@@ -1,13 +1,14 @@
-use axum::{routing::{get, post}, Router};
+use axum::Router;
+use axum::routing::{get, post};
 
-use crate::adapter::http::handlers::auth_handlers::{login, logout, me, refresh, signup};
+use crate::adapter::http::handlers::auth_handlers;
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/signup", post(signup))
-        .route("/login", post(login))
-        .route("/refresh", post(refresh))
-        .route("/logout", post(logout))
-        .route("/me", get(me))
+        .route("/signup", post(auth_handlers::signup))
+        .route("/login", post(auth_handlers::login))
+        .route("/refresh", post(auth_handlers::refresh))
+        .route("/logout", post(auth_handlers::logout))
+        .route("/me", get(auth_handlers::me))
 }

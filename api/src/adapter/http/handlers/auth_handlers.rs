@@ -30,7 +30,10 @@ pub async fn signup(
 
     match auth_service::signup(&state.pool, req.username, req.password, req.display_name).await {
         Ok(_) => StatusCode::CREATED.into_response(),
-        Err(e) => e.into_response(),
+        Err(e) => {
+            tracing::error!("signup error: {:?}", e);
+            e.into_response()
+        }
     }
 }
 

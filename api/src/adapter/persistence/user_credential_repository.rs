@@ -10,9 +10,9 @@ pub async fn find_by_user_and_type(
 ) -> Result<Option<UserCredential>, AppError> {
     sqlx::query_as(
         r#"
-        SELECT id, user_id, credential_type, secret, created_at, updated_at
+        SELECT id, user_id, credential_type::text AS credential_type, secret, created_at, updated_at
         FROM user_credentials
-        WHERE user_id = $1 AND credential_type = $2
+        WHERE user_id = $1 AND credential_type = $2::credential_type
         "#,
     )
     .bind(user_id)
@@ -31,8 +31,8 @@ pub async fn create(
     sqlx::query_as(
         r#"
         INSERT INTO user_credentials (user_id, credential_type, secret)
-        VALUES ($1, $2, $3)
-        RETURNING id, user_id, credential_type, secret, created_at, updated_at
+        VALUES ($1, $2::credential_type, $3)
+        RETURNING id, user_id, credential_type::text AS credential_type, secret, created_at, updated_at
         "#,
     )
     .bind(user_id)
@@ -53,8 +53,8 @@ pub async fn update_secret(
         r#"
         UPDATE user_credentials
         SET secret = $3
-        WHERE user_id = $1 AND credential_type = $2
-        RETURNING id, user_id, credential_type, secret, created_at, updated_at
+        WHERE user_id = $1 AND credential_type = $2::credential_type
+        RETURNING id, user_id, credential_type::text AS credential_type, secret, created_at, updated_at
         "#,
     )
     .bind(user_id)

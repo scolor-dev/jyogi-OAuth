@@ -1,14 +1,12 @@
-use rand::RngCore;
+use rand::Rng;
 
 use crate::adapter::security::hashing::sha256;
 
-/// 32バイトのランダムトークンを生成し `(raw, hash)` を返す。
-/// raw  … クライアントに渡す生トークン（hex文字列）
-/// hash … DBに保存するSHA256ハッシュ（hex文字列）
+/// ランダムなopaqueトークンを生成してraw文字列とそのSHA-256ハッシュを返す
 pub fn generate() -> (String, String) {
-    let mut bytes = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    let mut bytes = [0u8; 48];
+    rand::rng().fill_bytes(&mut bytes);
     let raw = hex::encode(bytes);
-    let hash = sha256(raw.as_str());
+    let hash = sha256(&raw);
     (raw, hash)
 }

@@ -21,10 +21,6 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id
     ON sessions(user_id);
  
-CREATE INDEX IF NOT EXISTS idx_sessions_session_token
-    ON sessions(session_token)
-    WHERE revoked_at IS NULL;
- 
 CREATE TRIGGER trg_sessions_updated_at
 BEFORE UPDATE ON sessions
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
