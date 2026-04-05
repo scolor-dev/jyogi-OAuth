@@ -15,7 +15,11 @@ pub struct RefreshToken {
 }
 
 impl RefreshToken {
+    pub fn is_expired(&self) -> bool {
+        self.expires_at < Utc::now()
+    }
+
     pub fn is_valid(&self) -> bool {
-        !self.is_used && self.expires_at > chrono::Utc::now()
+        !self.is_used && !self.is_expired()
     }
 }

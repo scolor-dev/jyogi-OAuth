@@ -9,3 +9,9 @@ pub struct UserCredential {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+impl UserCredential {
+    pub fn is_password(&self) -> bool {
+        self.credential_type == "password"
+    }
+}

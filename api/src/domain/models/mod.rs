@@ -5,3 +5,5 @@ pub mod token;
 pub mod user;
 pub mod user_credential;
 pub mod user_identity;
+pub mod user_profile;
+ 

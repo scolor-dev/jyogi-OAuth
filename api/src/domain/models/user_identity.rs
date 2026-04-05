@@ -10,3 +10,9 @@ pub struct UserIdentity {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+impl UserIdentity {
+    pub fn is_username(&self) -> bool {
+        self.identity_type == "username"
+    }
+}
