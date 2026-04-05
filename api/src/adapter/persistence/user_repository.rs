@@ -1,4 +1,4 @@
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
 use crate::{
@@ -28,13 +28,13 @@ pub async fn find_by_uuid(pool: &PgPool, uuid: Uuid) -> Result<Option<User>, App
     .map_err(AppError::Database)
 }
 
-pub async fn create(pool: &PgPool) -> Result<User, AppError> {
+pub async fn create(conn: &mut PgConnection) -> Result<User, AppError> {
     sqlx::query_as!(
         User,
         "INSERT INTO users (uuid, status) VALUES (gen_random_uuid(), 'pending')
          RETURNING id, uuid, status, created_at, updated_at, deleted_at"
     )
-    .fetch_one(pool)
+    .fetch_one(conn)
     .await
     .map_err(AppError::Database)
 }
