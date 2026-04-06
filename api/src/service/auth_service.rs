@@ -29,28 +29,18 @@ pub async fn signup(
     }
 
     let mut tx = pool.begin().await.map_err(AppError::Database)?;
-    tracing::debug!("tx started");
 
     let user = user_repository::create(&mut tx).await?;
-    tracing::debug!("user created: {:?}", user.id);
 
     let hashed = bcrypt_hash(&password)?;
-    tracing::debug!("password hashed");
 
     user_credential_repository::create(&mut tx, user.id, "password", &hashed).await?;
-    tracing::debug!("credential created");
-
     user_identity_repository::create(&mut tx, user.id, "username", &username, true).await?;
-    tracing::debug!("identity created");
-
     user_profile_repository::create(&mut tx, user.id, user.uuid, &display_name).await?;
-    tracing::debug!("profile created");
 
     let activated = user_repository::activate(&mut tx, user.id).await?;
-    tracing::debug!("user activated");
 
     tx.commit().await.map_err(AppError::Database)?;
-    tracing::debug!("tx committed");
 
     Ok(activated)
 }

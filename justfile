@@ -3,7 +3,8 @@ default:
 
 # DB起動（マイグレーションも自動実行）
 db:
-    docker compose -f migration/docker-compose.yml up -d --wait
+    docker compose -f migration/docker-compose.yml up -d --wait db
+    docker compose -f migration/docker-compose.yml run --rm migrate
 
 # DB停止
 db-down:
