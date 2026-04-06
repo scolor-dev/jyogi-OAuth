@@ -1,46 +1,24 @@
-use std::net::{AddrParseError, SocketAddr};
+use crate::adapter::security::token::jwt::JwtConfig;
 
 #[derive(Debug, Clone)]
-pub struct Config {
+pub struct AppConfig {
     pub database_url: String,
-    pub jwt_secret: String,
-    pub host: String,
-    pub port: u16,
-    pub rust_log: String,
-    pub db_max_connections: u32,
+    pub jwt: JwtConfig,
 }
 
-impl Config {
-    pub fn from_env() -> Result<Self, ConfigError> {
-        Ok(Self {
-            database_url: require_env("DATABASE_URL")?,
-            jwt_secret: require_env("JWT_SECRET")?,
-            host: std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string()),
-            port: std::env::var("PORT")
-                .unwrap_or_else(|_| "8080".to_string())
-                .parse()
-                .map_err(|_| ConfigError::Parse("PORT must be a number".to_string()))?,
-            rust_log: std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string()),
-            db_max_connections: std::env::var("DB_MAX_CONNECTIONS")
-                .unwrap_or_else(|_| "5".to_string())
-                .parse()
-                .map_err(|_| ConfigError::Parse("DB_MAX_CONNECTIONS must be a number".to_string()))?,
-        })
+impl AppConfig {
+    pub fn from_env() -> Self {
+        Self {
+            database_url: std::env::var("DATABASE_URL")
+                .unwrap_or_else(|_| "postgres://postgres:password@localhost:5432/app".to_string()),
+            jwt: JwtConfig {
+                secret: std::env::var("JWT_SECRET")
+                    .unwrap_or_else(|_| "changeme_secret_key".to_string()),
+                expires_in_secs: std::env::var("JWT_EXPIRES_IN_SECS")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(3600),
+            },
+        }
     }
-
-    pub fn listen_addr(&self) -> Result<SocketAddr, AddrParseError> {
-        format!("{}:{}", self.host, self.port).parse()
-    }
-}
-
-fn require_env(key: &str) -> Result<String, ConfigError> {
-    std::env::var(key).map_err(|_| ConfigError::Missing(key.to_string()))
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ConfigError {
-    #[error("missing required environment variable: {0}")]
-    Missing(String),
-    #[error("failed to parse environment variable: {0}")]
-    Parse(String),
 }

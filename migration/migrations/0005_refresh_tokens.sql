@@ -21,7 +21,7 @@ CREATE INDEX IF NOT EXISTS idx_refresh_tokens_session_id
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id
     ON refresh_tokens(user_id);
 
--- 期限切れ・使用済みトークンのクリーンアップ用（部分インデックス）
+-- 未使用トークンのクリーンアップ用（部分インデックス）
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_active
     ON refresh_tokens(token_hash)
-    WHERE is_used = false AND expires_at > NOW();
+    WHERE is_used = false;
